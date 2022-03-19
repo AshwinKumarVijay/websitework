@@ -1,0 +1,60 @@
+html, body {
+    height: 100%;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background-color: #f3f3f3;
+    color: #0a0a0a;
+    font-family: 'Roboto Mono';
+}
+
+canvas {
+	background-color: #f3f3f3;
+}
+
+
+.mainbox {
+    
+    height: 100%;
+
+    border: 0;
+    padding: 0;
+    margin: 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+}
+
+.canvasbox {
+
+    height: 100%;
+
+    border: 0;
+    padding: 0;
+    margin: 0;
+
+    flex: 4;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.textbox {
+
+    height: 100%;
+
+    border: 0;
+    padding: 0;
+    margin: 0;
+
+    flex: 2;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+}
