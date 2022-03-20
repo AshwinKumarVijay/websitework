@@ -22,7 +22,6 @@ function main() {
     // Initialize the GL context
     const gl = canvas.getContext('webgl2');
 
-    
 
     //  Check if we have a GL Context.
     if (!gl) {
@@ -31,6 +30,9 @@ function main() {
       return;
     
     }
+
+    //  Get the Extension.
+    gl.getExtension('EXT_color_buffer_float');
 
     //  Fixed it to 1600, 900 for the moment.
     glRenderer = new GLRenderer(gl);
