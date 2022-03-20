@@ -5,6 +5,9 @@ class GLRenderer {
     constructor(gl) {
         this.gl = gl;
 
+        //
+        this.frameCount = 0;
+
         //  Construct the Matrices.
         this.constructProjectionAndViewMatrices();
 
@@ -412,9 +415,10 @@ class GLRenderer {
             this.screenResolution
         );
 
+        //  Set the Random Seed.
         this.gl.uniform1f(
             shaderProgramData.uniformLocations["uRandomSeed"],
-            Math.floor(Math.random() * 100000)
+            this.frameCount
         );
 
     }
@@ -499,6 +503,9 @@ class GLRenderer {
         
         //  Draw to the Canvas.
         this.drawToCanvas();
+
+        //  Add the Frame Count.
+        this.frameCount = this.frameCount + 1;
              
     }
 
