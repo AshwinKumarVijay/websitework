@@ -8,8 +8,6 @@ var glRenderer = null;
 var previousTimeInSeconds = 0.0;
 
 
-//  Main!
-main();
 
 
 //

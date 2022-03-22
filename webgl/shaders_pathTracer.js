@@ -20,10 +20,12 @@ void main() {
 `;
 
 //  Fragment Shader Source.
-const pathTracerFSSource = `
+const pathTracerFSSource = 
+`#version 320 es 
 
 precision highp float;
 
+#define volumedensity 50.0 \n
 
 uniform mat4 uProjectionMatrix;
 uniform mat4 uModelViewMatrix;
@@ -33,74 +35,61 @@ uniform vec2 uScreenResolution;
 
 uniform float uRandomSeed;
 
+`
 
-float random(vec3 scale, float seed) {
-    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
++ noiseFunctionShaderSource + `
+
+struct Ray {
+    vec3 origin;            //  Origin.
+    vec3 direction;         //  Direction.
+};
+
+
+struct CurrentRayPathData {
+
+    float stepSize;
+    bool didIntersectObject;
+
+};
+
+
+
+// 4D Julia set Distance Estimator (With an Orbit Trap)
+vec4 qsqr(vec4 a){
+    return vec4(a.x*a.x-a.y*a.y-a.z*a.z-a.w*a.w, 2.0*a.x*a.y, 2.0*a.x*a.z, 2.0*a.x*a.w);
 }
 
-vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
-    
-    vec3 tMin = (cubeMin - origin) / ray;
-    vec3 tMax = (cubeMax - origin) / ray;
-    vec3 t1 = min(tMin, tMax);   
-    vec3 t2 = max(tMin, tMax);   
-    
-    float tNear = max(max(t1.x, t1.y), t1.z);   
-    float tFar = min(min(t2.x, t2.y), t2.z);   
-    
-    return vec2(tNear, tFar); 
-    
-} 
+vec4 distanceestimator(vec3 pos){
 
-vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) 
-{   
-    
-    if(hit.x < cubeMin.x + 0.0001){
-        return vec3(-1.0, 0.0, 0.0);
-    }
-    else if(hit.x > cubeMax.x - 0.0001) {
-        return vec3(1.0, 0.0, 0.0);
-    }
-    else if(hit.y < cubeMin.y + 0.0001) {
-        return vec3(0.0, -1.0, 0.0);   
-    }
-    else if(hit.y > cubeMax.y - 0.0001) {
-        return vec3(0.0, 1.0, 0.0);   
-    }
-    else if(hit.z < cubeMin.z + 0.0001) {
-        return vec3(0.0, 0.0, -1.0);
-    }
-    else {
-        return vec3(0.0, 0.0, 1.0); 
-    }
-} 
+    vec4 z = vec4(pos, 0.0);
+    float md2 = 1.0;
+    float mz2 = dot(z, z);
+    vec4 orbitTrap = vec4(1.0);
+    for(int i = 0; i < 8; i++){
+        md2 *= 4.0*mz2;
+        z = qsqr(z)+vec4(-0.5, 0.35, 0.5, 0.0);
+        //z = qsqr(z)+vec4(-0.5, 0.5, 0.25, 0.0);
+        orbitTrap = min(abs(z), orbitTrap);
+        mz2 = dot(z,z);
+        if(mz2 > 4.0) break;}
+    float sdf = 0.25*sqrt(mz2/md2)*log(mz2);
+    return vec4(orbitTrap.rgb, sdf);}
+
+// 3D Volumetric Density Function
+vec4 densityfunction(vec3 pathposition){
+
+    float density = 0.0;
+    vec4 distanceestimation = distanceestimator(pathposition);
+    if(distanceestimation.w < 0.0){density = volumedensity;}
+    return vec4(distanceestimation.rgb, density);
+}
 
 
-vec3 cosineWeightedDirection(float seed, vec3 normal) 
-{   
-    float u = random(vec3(12.9898, 78.233, 151.7182), seed);
-    float v = random(vec3(63.7264, 10.873, 623.6736), seed);
-    
-    float r = sqrt(u);
-    
-    float angle = 6.283185307179586 * v;   
-    
-    vec3 sdir, tdir;   
-    
-    if (abs(normal.x)<.5) 
-    {
-        sdir = cross(normal, vec3(1,0,0));   
-    } 
-    else 
-    {     
-        sdir = cross(normal, vec3(0,1,0));   
-    }   
-    
-    tdir = cross(normal, sdir);
-    
-    return r * cos(angle) * sdir + r * sin(angle) * tdir + sqrt(1.-u) * normal;
-} 
+float random(vec3 scale, float seed) {
 
+    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
+
+}
 
 
 vec3 traceRay(float seed) {
@@ -116,8 +105,8 @@ vec3 traceRay(float seed) {
     vec4 unprojectedPixelCoordinates = normalize(uInverseProjectionMatrix * pixelCoordinates);
     
     //  Construct the Current Ray.
-    vec3 currentRay = unprojectedPixelCoordinates.xyz / unprojectedPixelCoordinates.w;
-    currentRay = normalize(currentRay);
+    vec3 currentRayDirection = unprojectedPixelCoordinates.xyz / unprojectedPixelCoordinates.w;
+    currentRayDirection = normalize(currentRayDirection);
     
     
     //  ----------   //
@@ -129,90 +118,50 @@ vec3 traceRay(float seed) {
     
     //  The Accumulated Color of the Bounces.
     vec3 accumulatedColor = vec3(0.0);
-    
+
     //  The Attrition Mask.
     vec3 attritionMask = vec3(1.0, 1.0, 1.0);
     
     //  Set the Light Position.
     vec3 lightPosition = vec3(0.0, 0.0, 0.0);
     
-    
+
     //  
-    for(int bounce = 0; bounce < 5; bounce++) 
-    {
+    Ray currentRay;
+    currentRay.origin = origin;
+    currentRay.direction = currentRayDirection;
+
+    //  
+    float stepSize = 0.1;
+    bool didIntersectObject = false;
+
+
+    for(int currentStepCount = 0; currentStepCount < 128; currentStepCount++) {
+
+        //  Get the Current Position.
+        vec3 currentPosition = currentRay.origin + float(currentStepCount) * stepSize * currentRay.direction;
+        
+        //  Get the Current Distance Estimation and the Density.
+        vec4 currentDistanceEstimation = densityfunction(currentPosition);
+
+        //  Get the Absorbance.
+        float absorbance = exp(-currentDistanceEstimation.w * stepSize);
+
+        //  Get the Random Value.
+        float randValue = random(vec3(gl_FragCoord.xyz), uRandomSeed);
+
         //  
-        float t = 10000.0;     
-        
-        //  Make the Room Cube Min and Max.
-        vec3 roomCubeMin = vec3(-1.0, -1.0, -1.0);
-        vec3 roomCubeMax = vec3( 1.0,  1.0, 1.0);
-        
-        //  
-        vec2 tRoom = intersectCube(origin, currentRay.xyz, roomCubeMin, roomCubeMax);
-        
-        if(tRoom.x < tRoom.y) {
-            t = tRoom.y;
-        }    
-        
-        //  Construct the Hitpoint.
-        vec3 hitPoint = origin + currentRay.xyz * t;     
-        
-        //                          
-        if(t == tRoom.y) 
-        {
-            //  Default is Black.
-            vec3 surfaceColor = vec3(0.0, 0.0, 0.0);
-            
-            //  Compute the Normal of the Cube.
-            vec3 normal = -normalForCube(hitPoint, roomCubeMin, roomCubeMax); 
-            
-            
-            //  
-            if(hitPoint.x < -0.9999) {
-                surfaceColor = vec3(1.0, 0.0, 0.1);
-            }                        
-            else if(hitPoint.x > 0.9999) {
-                surfaceColor = vec3(0.3, 1.0, 0.1);            
-            }
-            else {
-                surfaceColor = vec3(0.8, 0.8, 0.8);
-            }
-            
-            //  Compute the Ray from the Hit Point to the Light Ray.
-            vec3 hitToLightRay = normalize(lightPosition - hitPoint);
-            
-            //  Compute the Distance.
-            float hitPointToLightDistance = length(lightPosition - hitPoint);
-            
-            //  Compute the Contribution.
-            float lightContribution = 1.0 / (hitPointToLightDistance * hitPointToLightDistance);
-            
-            //  Compute the Diffuse Value.
-            float diffuseValue = max(0.0, dot(normalize(hitToLightRay), normal));
-            
-            //  Update the Attrition Mask.
-            attritionMask = attritionMask * surfaceColor;
-            
-            //  Accumulate the Color.
-            accumulatedColor = accumulatedColor + attritionMask * diffuseValue * lightContribution * 1.0 / 3.14;
-            
-            //  Get Ready for the Bounce.
-            //  Change the Origin to be the Hit Point.
-            origin = hitPoint;
-            
-            //  Compute the Cosine Weight Direction.
-            currentRay.xyz = cosineWeightedDirection(seed, normal); 
-            
-            //  Update the Attrition Mask - since the next iteration is a contribution to the indirect diffuse lighting. 
-            attritionMask = attritionMask * 2.0 * max(0.0, dot(normalize(currentRay.xyz), normal)) / 3.14;
-        } 
-        else
-        { 
+        if(absorbance < randValue) {
+            attritionMask *= currentDistanceEstimation.xyz;
             break;
-        }
+        } 
+
+
+
     }
-    
-    return accumulatedColor;
+
+
+    return vec3(243.0 / 255.0, 243.0 / 255.0, 243.0 / 255.0) * attritionMask;
 }
 
 
@@ -227,7 +176,6 @@ void main() {
     //  Output Color!
     gl_FragColor = vec4( accumulatedColor, 1.0);
 }
-
 
 `;
 
