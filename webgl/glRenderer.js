@@ -418,7 +418,7 @@ class GLRenderer {
         //  Set the Random Seed.
         this.gl.uniform1f(
             shaderProgramData.uniformLocations["uRandomSeed"],
-            this.frameCount
+            this.frameCount % 1000
         );
 
     }

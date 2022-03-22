@@ -1,12 +1,12 @@
-
-
-
 //  Vertex Shader Source.
-const pathTracerVSSource = `
+const pathTracerVSSource = 
+commonShaderVersionSource + 
+
+`
 
 precision highp float;
 
-attribute vec4 aVertexPosition;
+in vec4 aVertexPosition;
 
 uniform mat4 uProjectionMatrix;
 uniform mat4 uModelViewMatrix;
@@ -21,11 +21,13 @@ void main() {
 
 //  Fragment Shader Source.
 const pathTracerFSSource = 
-`#version 320 es 
+commonShaderVersionSource + 
+
+`
 
 precision highp float;
 
-#define volumedensity 50.0 \n
+#define volumedensity 50.0
 
 uniform mat4 uProjectionMatrix;
 uniform mat4 uModelViewMatrix;
@@ -35,9 +37,13 @@ uniform vec2 uScreenResolution;
 
 uniform float uRandomSeed;
 
+out vec4 fragColor;
+
 `
 
-+ noiseFunctionShaderSource + `
++ noiseFunctionShaderSource + 
+
+`
 
 struct Ray {
     vec3 origin;            //  Origin.
@@ -85,11 +91,6 @@ vec4 densityfunction(vec3 pathposition){
 }
 
 
-float random(vec3 scale, float seed) {
-
-    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
-
-}
 
 
 vec3 traceRay(float seed) {
@@ -127,9 +128,9 @@ vec3 traceRay(float seed) {
     
 
     //  
-    Ray currentRay;
-    currentRay.origin = origin;
-    currentRay.direction = currentRayDirection;
+    Ray currentRayMarch;
+    currentRayMarch.origin = origin;
+    currentRayMarch.direction = currentRayDirection;
 
     //  
     float stepSize = 0.1;
@@ -139,24 +140,27 @@ vec3 traceRay(float seed) {
     for(int currentStepCount = 0; currentStepCount < 128; currentStepCount++) {
 
         //  Get the Current Position.
-        vec3 currentPosition = currentRay.origin + float(currentStepCount) * stepSize * currentRay.direction;
+        currentRayMarch.origin = currentRayMarch.origin + stepSize * currentRayMarch.direction;
         
         //  Get the Current Distance Estimation and the Density.
-        vec4 currentDistanceEstimation = densityfunction(currentPosition);
+        vec4 currentDistanceEstimation = densityfunction(currentRayMarch.origin);
 
         //  Get the Absorbance.
         float absorbance = exp(-currentDistanceEstimation.w * stepSize);
 
         //  Get the Random Value.
-        float randValue = random(vec3(gl_FragCoord.xyz), uRandomSeed);
+        float randValue = rand();
 
         //  
         if(absorbance < randValue) {
-            attritionMask *= currentDistanceEstimation.xyz;
+
+            attritionMask *= clamp(currentDistanceEstimation.rgb * 1.0, vec3(0.0), vec3(1.0));
             break;
+            
+            currentRayMarch.direction = normalize(nrand3(1.0, vec3(0.0)));
+            currentRayMarch.origin = currentRayMarch.origin + stepSize * currentRayMarch.direction;
+            
         } 
-
-
 
     }
 
@@ -167,6 +171,8 @@ vec3 traceRay(float seed) {
 
 void main() {
     
+    INIT_RNG;
+    
     //  Zero!
     vec3 accumulatedColor = vec3(0.0);
     
@@ -174,7 +180,7 @@ void main() {
     accumulatedColor = accumulatedColor + traceRay(uRandomSeed);
     
     //  Output Color!
-    gl_FragColor = vec4( accumulatedColor, 1.0);
+    fragColor = vec4(accumulatedColor, 1.0);
 }
 
 `;

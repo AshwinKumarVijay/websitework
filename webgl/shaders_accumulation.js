@@ -1,9 +1,11 @@
 //  Vertex Shader Source.
-const accumulationVSSource = `
+const accumulationVSSource = 
+commonShaderVersionSource + 
+`
 
 precision highp float;
 
-attribute vec4 aVertexPosition;
+in vec4 aVertexPosition;
 
 uniform mat4 uProjectionMatrix;
 uniform mat4 uModelViewMatrix;
@@ -20,7 +22,9 @@ void main() {
 
 
 //  Fragment Shader Source.
-const accumulationFSSource = `
+const accumulationFSSource = 
+commonShaderVersionSource + 
+`
 
 precision highp float;
 
@@ -29,6 +33,8 @@ uniform sampler2D uCurrentAccTexture;
 
 uniform float uFrameCount;
 uniform vec2 uScreenResolution;
+
+out vec4 fragColor;
 
 void main() {
     
@@ -53,7 +59,7 @@ void main() {
     }
     
     //  
-    gl_FragColor = vec4(weightedColor.xyz, 1.0);
+    fragColor = vec4(weightedColor.xyz, 1.0);
 }
 
 `;
